@@ -1,28 +1,20 @@
-/**
- * @file control_unit_base.h
- * @brief Control unit base class definition
- * @author Vishank Singh, https://github.com/VishankSingh
- */
 #ifndef CONTROL_UNIT_BASE_H
 #define CONTROL_UNIT_BASE_H
 
 #include "registers.h"
 #include "alu.h"
 
-/**
- * @brief The ControlUnit class is the base class for the control unit of the CPU.
- */
 class ControlUnit {
  public:
   virtual ~ControlUnit() = default;
 
   void Reset() {
-    alu_src_ = false;
-    mem_to_reg_ = false;
-    reg_write_ = false;
-    mem_read_ = false;
-    mem_write_ = false;
-    branch_ = false;
+    alu_src_ = false;//alu will use register value as second oeprand
+    mem_to_reg_ = false;//write alu result to register not to memory
+    reg_write_ = false;//do not write to register file
+    mem_read_ = false;//do not read from memory
+    mem_write_ = false;//not a branch instruction
+    branch_ = false;//default alu operation
     alu_op_ = 0;
   }
 
@@ -49,4 +41,4 @@ class ControlUnit {
   uint8_t alu_op_{};
 };
 
-#endif // CONTROL_UNIT_BASE_H
+#endif 
