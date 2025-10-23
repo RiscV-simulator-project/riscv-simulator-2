@@ -16,6 +16,7 @@ class ControlUnit {
     mem_write_ = false;//not a branch instruction
     branch_ = false;//default alu operation
     jump_ = false;
+    pc_to_alu_ = false; // Add this line
     alu_op_ = 0;
   }
 
@@ -39,6 +40,7 @@ class ControlUnit {
   bool mem_write_ = false;
   bool mem_to_reg_ = false;
   bool jump_ = false;
+  bool pc_to_alu_ = false; // Add this line
 
   uint8_t alu_op_{};
 };

@@ -52,7 +52,11 @@ private:
     bool pc_write_ = true;
     bool if_id_write_ = true;
 
+<<<<<<< HEAD
     // Branch prediction/handling state
+=======
+    // State for branch prediction/handling
+>>>>>>> 982fc4b (fixed pipeline branch)
     bool branch_taken_ = false;
     uint64_t branch_target_ = 0;
 };

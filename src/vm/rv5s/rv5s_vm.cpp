@@ -8,7 +8,7 @@ RiscV5StageVM::RiscV5StageVM() : VmBase() {
     Reset();
 }
 
-RiscV5StageVM::~RiscV5StageVM() = default;
+// RiscV5StageVM::~RiscV5StageVM() = default; // Already defaulted in header
 
 void RiscV5StageVM::Run() {
     stop_requested_ = false;
@@ -24,12 +24,12 @@ void RiscV5StageVM::Run() {
 }
 
 void RiscV5StageVM::ClockTick() {
+    // --- Detect hazards BEFORE executing stages ---
+    DetectAndHandleHazards();
+
     // --- Execute pipeline stages in reverse order ---
     // This prevents an instruction from racing through multiple stages in one cycle.
     // Each stage uses the register state from the *previous* cycle.
-
-    DetectAndHandleHazards();
-
     WriteBackStage();
     MemoryStage();
     ExecuteStage();
@@ -38,14 +38,22 @@ void RiscV5StageVM::ClockTick() {
 
     // --- Latch new values for the next cycle ---
     // This simulates the clock edge where all registers are updated simultaneously.
+<<<<<<< HEAD
     if (if_id_write_) if_id_reg_ = next_if_id_reg_;
     // Stalls in ID/EX are handled by injecting bubbles
     id_ex_reg_ = next_id_ex_reg_; // Stalls in ID/EX are handled by injecting bubbles
+=======
+    if (if_id_write_) {
+        if_id_reg_ = next_if_id_reg_;
+    }
+    id_ex_reg_ = next_id_ex_reg_; // Stalls are handled by injecting bubbles into next_id_ex_reg_
+>>>>>>> 982fc4b (fixed pipeline branch)
     ex_mem_reg_ = next_ex_mem_reg_;
     mem_wb_reg_ = next_mem_wb_reg_;
     
     // --- PC Update Logic ---
     // Handle PC update based on whether a branch was taken in the EX stage
+<<<<<<< HEAD
     if (branch_taken_) {
         program_counter_ = branch_target_;
         // Flush the IF and ID stages by invalidating their registers
@@ -54,12 +62,21 @@ void RiscV5StageVM::ClockTick() {
         branch_taken_ = false; // Reset for the next cycle
     } else {
         program_counter_ += 4;
+=======
+    if (pc_write_) {
+        if (branch_taken_) {
+            program_counter_ = branch_target_;
+            // The flush is handled by invalidating the *next* registers in ExecuteStage
+            branch_taken_ = false; // Reset for the next cycle
+        } else {
+            program_counter_ += 4;
+        }
+>>>>>>> 982fc4b (fixed pipeline branch)
     }
 
     cycle_s_++;
     // Note: instructions_retired_ should only be incremented in the WB stage.
 }
-
 
 // STAGE 5: Write-Back
 void RiscV5StageVM::WriteBackStage() {
@@ -92,7 +109,6 @@ void RiscV5StageVM::MemoryStage() {
     next_mem_wb_reg_.alu_result = ex_mem_reg_.alu_result;
     next_mem_wb_reg_.rd_idx = ex_mem_reg_.rd_idx;
     next_mem_wb_reg_.control = ex_mem_reg_.control;
-    // Removed redundant line: next_mem_wb_reg_.control = ex_mem_reg_.control;
     next_mem_wb_reg_.valid = true;
 
     // Perform memory operations
@@ -149,26 +165,73 @@ void RiscV5StageVM::ExecuteStage() {
     // Pass-through values from ID/EX to EX/MEM
     next_ex_mem_reg_.pc = id_ex_reg_.pc;
     next_ex_mem_reg_.link_address = id_ex_reg_.link_address;
-    next_ex_mem_reg_.rs2_val = id_ex_reg_.rs2_val; // Needed for store instructions
     next_ex_mem_reg_.rd_idx = id_ex_reg_.rd_idx;
-    next_ex_mem_reg_.funct3 = id_ex_reg_.funct3; // Pass funct3 forward (now correctly defined in struct)
+    next_ex_mem_reg_.funct3 = id_ex_reg_.funct3;
     next_ex_mem_reg_.control = id_ex_reg_.control;
     next_ex_mem_reg_.valid = true;
 
-    // Determine ALU inputs (will be modified by forwarding unit later)
+    // Determine ALU inputs
     uint64_t alu_input1;
+<<<<<<< HEAD
 
     // For AUIPC, JAL, and JALR, the first ALU input is the PC. For others, it's rs1.
     if (id_ex_reg_.control.pc_to_alu) { // Assumes a new 'pc_to_alu' signal from the control unit
+=======
+    uint64_t alu_input2;
+    
+    // For AUIPC, JAL, the first ALU input is the PC. For others, it's rs1.
+    if (id_ex_reg_.control.pc_to_alu) {
+>>>>>>> 982fc4b (fixed pipeline branch)
         alu_input1 = id_ex_reg_.pc;
     } else {
         alu_input1 = id_ex_reg_.rs1_val;
     }
-    uint64_t alu_input2 = id_ex_reg_.control.alu_src ? id_ex_reg_.imm : id_ex_reg_.rs2_val;
+    
+    // Second input is either immediate or rs2
+    alu_input2 = id_ex_reg_.control.alu_src ? id_ex_reg_.imm : id_ex_reg_.rs2_val;
+    
+    // Store value (for store instructions, may need forwarding)
+    uint64_t store_val = id_ex_reg_.rs2_val;
+
+    // --- Data Forwarding Unit ---
+    // Forward from EX/MEM stage (higher priority)
+    if (ex_mem_reg_.valid && ex_mem_reg_.control.reg_write && (ex_mem_reg_.rd_idx != 0)) {
+        // Forward to ALU input 1 (only if not using PC)
+        if (!id_ex_reg_.control.pc_to_alu && ex_mem_reg_.rd_idx == id_ex_reg_.rs1_idx) {
+            alu_input1 = ex_mem_reg_.alu_result;
+        }
+        // Forward to ALU input 2 (only if not using immediate)
+        if (!id_ex_reg_.control.alu_src && ex_mem_reg_.rd_idx == id_ex_reg_.rs2_idx) {
+            alu_input2 = ex_mem_reg_.alu_result;
+            store_val = ex_mem_reg_.alu_result; // Also forward to store value
+        }
+    }
+
+    // Forward from MEM/WB stage (lower priority)
+    if (mem_wb_reg_.valid && mem_wb_reg_.control.reg_write && (mem_wb_reg_.rd_idx != 0)) {
+        uint64_t wb_data = mem_wb_reg_.control.mem_to_reg ? mem_wb_reg_.mem_read_data : mem_wb_reg_.alu_result;
+        
+        // Only forward if not already forwarded from EX/MEM
+        if (!id_ex_reg_.control.pc_to_alu && 
+            mem_wb_reg_.rd_idx == id_ex_reg_.rs1_idx && 
+            !(ex_mem_reg_.valid && ex_mem_reg_.control.reg_write && ex_mem_reg_.rd_idx == id_ex_reg_.rs1_idx)) {
+            alu_input1 = wb_data;
+        }
+        
+        if (!id_ex_reg_.control.alu_src && 
+            mem_wb_reg_.rd_idx == id_ex_reg_.rs2_idx && 
+            !(ex_mem_reg_.valid && ex_mem_reg_.control.reg_write && ex_mem_reg_.rd_idx == id_ex_reg_.rs2_idx)) {
+            alu_input2 = wb_data;
+            store_val = wb_data; // Also forward to store value
+        }
+    }
+
+    // Set the store value for memory stage
+    next_ex_mem_reg_.rs2_val = store_val;
 
     // Perform ALU operation
     bool overflow; // Ignored for now
-    std::tie(next_ex_mem_reg_.alu_result, overflow) = alu_.execute(id_ex_reg_.alu_operation, alu_input1, alu_input2);
+    std::tie(next_ex_mem_reg_.alu_result, overflow) = alu::Alu::execute(id_ex_reg_.alu_operation, alu_input1, alu_input2);
 
     // Set zero flag for branches
     next_ex_mem_reg_.alu_zero = (next_ex_mem_reg_.alu_result == 0);
@@ -176,9 +239,18 @@ void RiscV5StageVM::ExecuteStage() {
     // Handle unconditional jumps (JAL, JALR)
     if (id_ex_reg_.control.jump) {
         branch_taken_ = true;
+        // Flush the IF and ID stages by invalidating their *next* registers
+        next_if_id_reg_.valid = false;
+        next_id_ex_reg_.valid = false;
+
         // For JAL, the target is alu_result (PC + imm).
+<<<<<<< HEAD
         // For JALR, the target is (rs1_val + imm) & ~1ULL.
         if (id_ex_reg_.funct3 == 0) { // JALR instruction
+=======
+        // For JALR, the target is (rs1_val + imm) & ~1. Opcode is kjalr, funct3 is 0
+        if ( (id_ex_reg_.instruction & 0b1111111) == instruction_set::get_instr_encoding(instruction_set::Instruction::kjalr).opcode) { // JALR instruction
+>>>>>>> 982fc4b (fixed pipeline branch)
             branch_target_ = next_ex_mem_reg_.alu_result & ~1ULL;
         } else { // JAL instruction
             branch_target_ = next_ex_mem_reg_.alu_result;
@@ -201,15 +273,19 @@ void RiscV5StageVM::ExecuteStage() {
                 take_branch = ((int64_t)next_ex_mem_reg_.alu_result >= 0); // rs1 >= rs2 implies rs1 - rs2 >= 0
                 break;
             case 0b110: // BLTU (Branch if Less Than, unsigned)
-                take_branch = (id_ex_reg_.rs1_val < id_ex_reg_.rs2_val); // Direct comparison of original values
+                take_branch = (alu_input1 < alu_input2); // Use forwarded values
                 break;
             case 0b111: // BGEU (Branch if Greater than or Equal, unsigned)
-                take_branch = (id_ex_reg_.rs1_val >= id_ex_reg_.rs2_val); // Direct comparison of original values
+                take_branch = (alu_input1 >= alu_input2); // Use forwarded values
                 break;
         }
         
         if (take_branch) {
             branch_taken_ = true;
+            // Flush the IF and ID stages by invalidating their *next* registers
+            next_if_id_reg_.valid = false;
+            next_id_ex_reg_.valid = false;
+
             // The target address is PC + immediate for branches
             branch_target_ = id_ex_reg_.pc + id_ex_reg_.imm;
         }
@@ -286,33 +362,6 @@ void RiscV5StageVM::DetectAndHandleHazards() {
         // Inject a bubble (NOP) into the ID/EX register to prevent the stalled instruction from proceeding
         next_id_ex_reg_ = {}; // An empty struct with valid=false is a bubble
     }
-
-    // --- Data Forwarding (from EX/MEM and MEM/WB stages) ---
-    // This logic should be in the ExecuteStage to modify ALU inputs, but is shown here for clarity.
-    // For simplicity, we will modify the `next_id_ex_reg_` values before they are used in Execute.
-    // This is conceptually equivalent to a forwarding unit just before the ALU.
-
-    // Forward from EX/MEM stage (higher priority)
-    if (ex_mem_reg_.valid && ex_mem_reg_.control.reg_write && (ex_mem_reg_.rd_idx != 0)) {
-        if (ex_mem_reg_.rd_idx == next_id_ex_reg_.rs1_idx) {
-            next_id_ex_reg_.rs1_val = ex_mem_reg_.alu_result;
-        }
-        if (ex_mem_reg_.rd_idx == next_id_ex_reg_.rs2_idx) {
-            next_id_ex_reg_.rs2_val = ex_mem_reg_.alu_result;
-        }
-    }
-
-    // Forward from MEM/WB stage (lower priority)
-    if (mem_wb_reg_.valid && mem_wb_reg_.control.reg_write && (mem_wb_reg_.rd_idx != 0)) {
-        // Only forward if not already forwarded from EX/MEM
-        if (mem_wb_reg_.rd_idx == next_id_ex_reg_.rs1_idx && !(ex_mem_reg_.valid && ex_mem_reg_.control.reg_write && ex_mem_reg_.rd_idx == next_id_ex_reg_.rs1_idx)) {
-            // Determine what data to forward
-            next_id_ex_reg_.rs1_val = mem_wb_reg_.control.mem_to_reg ? mem_wb_reg_.mem_read_data : mem_wb_reg_.alu_result;
-        }
-        if (mem_wb_reg_.rd_idx == next_id_ex_reg_.rs2_idx && !(ex_mem_reg_.valid && ex_mem_reg_.control.reg_write && ex_mem_reg_.rd_idx == next_id_ex_reg_.rs2_idx)) {
-            next_id_ex_reg_.rs2_val = mem_wb_reg_.control.mem_to_reg ? mem_wb_reg_.mem_read_data : mem_wb_reg_.alu_result;
-        }
-    }
 }
 
 // --- Placeholder implementations for the rest of the VmBase interface ---
@@ -344,7 +393,6 @@ void RiscV5StageVM::Reset() {
     cycle_s_ = 0;
     registers_.Reset();
     memory_controller_.Reset();
-    // memory_controller_.Reset(); // Assuming this resets memory content
     control_unit_.Reset();
 
     // Clear all pipeline registers

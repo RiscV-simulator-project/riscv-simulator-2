@@ -22,10 +22,16 @@ struct ID_EX_Register {
     uint8_t rs2_idx = 0;
     uint8_t rd_idx = 0;
     uint8_t funct3 = 0; // Added: Used for memory access type and branch conditions
+<<<<<<< HEAD
     uint32_t instruction = 0; // Pass instruction for JALR check
     alu::AluOp alu_operation;
 
     
+=======
+    uint32_t instruction = 0; // Pass instruction for JALR check etc.
+    alu::AluOp alu_operation = alu::AluOp::kNone; // ALU operation for EX stage
+
+>>>>>>> 982fc4b (fixed pipeline branch)
     // Control signals generated in the ID stage
     ControlSignals control;
     bool valid = false;

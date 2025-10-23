@@ -47,11 +47,11 @@ void RV5SControlUnit::SetControlSignals(uint32_t instruction) {
   } else {
       // Integer instructions
       switch (opcode) {
-          case get_instr_encoding(Instruction::kLui).opcode: // LUI
+          case 0b0110111: // LUI
               reg_write_ = true;
               //alu_op_ is not used, imm is handled separately
               break;
-          case get_instr_encoding(Instruction::kAuipc).opcode: // AUIPC
+          case 0b0010111: // AUIPC
               reg_write_ = true;
               pc_to_alu_ = true;
               break;
