@@ -16,6 +16,7 @@ void RV5SControlUnit::SetControlSignals(uint32_t instruction) {
   mem_read_ = false;
   mem_write_ = false;
   alu_src_ = false;
+  jump_ = false;
   alu_op_ = 0;
 
   if (instruction_set::isFInstruction(instruction) || instruction_set::isDInstruction(instruction)) {
@@ -79,11 +80,11 @@ void RV5SControlUnit::SetControlSignals(uint32_t instruction) {
               break;
           case get_instr_encoding(Instruction::kjal).opcode: //jal
               reg_write_ = true;
-              branch_ = true; // To signal a PC change
+              jump_ = true; // To signal a PC change
               break;
           case get_instr_encoding(Instruction::kjalr).opcode: //jalr
               reg_write_ = true;
-              branch_ = true; // To signal a PC change
+              jump_ = true; // To signal a PC change
               alu_src_ = true;
               break;
       }
@@ -100,71 +101,71 @@ alu::AluOp RV5SControlUnit::GetAluSignal(uint32_t instruction, bool ALUOp) {
         // This is a simplified example
         switch(opcode) {
             case 0b1010011: // F-R-Type
-                if (funct7 == get_instr_encoding(Instruction::kfadd_s).funct7) return alu::AluOp::FADD;
-                if (funct7 == get_instr_encoding(Instruction::kfsub_s).funct7) return alu::AluOp::FSUB;
-                if (funct7 == get_instr_encoding(Instruction::kfmul_s).funct7) return alu::AluOp::FMUL;
-                if (funct7 == get_instr_encoding(Instruction::kfdiv_s).funct7) return alu::AluOp::FDIV;
-                if (funct7 == get_instr_encoding(Instruction::kfsqrt_s).funct7) return alu::AluOp::FSQRT;
-                if (funct7 == get_instr_encoding(Instruction::kfsgnj_s).funct7) return alu::AluOp::FSGNJ;
-                if (funct7 == get_instr_encoding(Instruction::kfmin_s).funct7) return alu::AluOp::FMIN;
-                if (funct7 == get_instr_encoding(Instruction::kfmax_s).funct7) return alu::AluOp::FMAX;
+                if (funct7 == get_instr_encoding(Instruction::kfadd_s).funct7) return alu::AluOp::FADD_S;
+                if (funct7 == get_instr_encoding(Instruction::kfsub_s).funct7) return alu::AluOp::FSUB_S;
+                if (funct7 == get_instr_encoding(Instruction::kfmul_s).funct7) return alu::AluOp::FMUL_S;
+                if (funct7 == get_instr_encoding(Instruction::kfdiv_s).funct7) return alu::AluOp::FDIV_S;
+                if (funct7 == get_instr_encoding(Instruction::kfsqrt_s).funct7) return alu::AluOp::FSQRT_S;
+                if (funct7 == get_instr_encoding(Instruction::kfsgnj_s).funct7) return alu::AluOp::FSGNJ_S;
+                if (funct7 == get_instr_encoding(Instruction::kfmin_s).funct7) return alu::AluOp::FMIN_S;
+                if (funct7 == get_instr_encoding(Instruction::kfmax_s).funct7) return alu::AluOp::FMAX_S;
                 if (funct7 == get_instr_encoding(Instruction::kfcvt_w_s).funct7) return alu::AluOp::FCVT_W_S;
                 if (funct7 == get_instr_encoding(Instruction::kfmv_x_w).funct7 && funct3 == 0b000) return alu::AluOp::FMV_X_W;
-                if (funct7 == get_instr_encoding(Instruction::kfeq_s).funct7) return alu::AluOp::FEQ;
-                if (funct7 == get_instr_encoding(Instruction::kflt_s).funct7) return alu::AluOp::FLT;
-                if (funct7 == get_instr_encoding(Instruction::kfle_s).funct7) return alu::AluOp::FLE;
-                if (funct7 == get_instr_encoding(Instruction::kfclass_s).funct7) return alu::AluOp::FCLASS;
+                if (funct7 == get_instr_encoding(Instruction::kfeq_s).funct7) return alu::AluOp::FEQ_S;
+                if (funct7 == get_instr_encoding(Instruction::kflt_s).funct7) return alu::AluOp::FLT_S;
+                if (funct7 == get_instr_encoding(Instruction::kfle_s).funct7) return alu::AluOp::FLE_S;
+                if (funct7 == get_instr_encoding(Instruction::kfclass_s).funct7) return alu::AluOp::FCLASS_S;
                 if (funct7 == get_instr_encoding(Instruction::kfcvt_s_w).funct7) return alu::AluOp::FCVT_S_W;
-                if (funct7 == get_instr_encoding(Instruction::kfmv_w_x).funct7) return alu_op_ == 0b000 ? alu::AluOp::FMV_W_X : alu::AluOp::NOP;
+                if (funct7 == get_instr_encoding(Instruction::kfmv_w_x).funct7) return alu::AluOp::FMV_W_X;
                 break;
-            case 0b1000011: return alu::AluOp::FMADD;
-            case 0b1000111: return alu::AluOp::FMSUB;
-            case 0b1001011: return alu::AluOp::FNMSUB;
-            case 0b1001111: return alu::AluOp::FNMADD;
-            default: return alu::AluOp::ADD; // For address calculation
+            case 0b1000011: return alu::AluOp::kFmadd_s;
+            case 0b1000111: return alu::AluOp::kFmsub_s;
+            case 0b1001011: return alu::AluOp::kFnmsub_s;
+            case 0b1001111: return alu::AluOp::kFnmadd_s;
+            default: return alu::AluOp::kAdd; // For address calculation
         }
         return alu::AluOp::kNone;
     }
 
     if (ALUOp == 0b01) { // Branch
         switch (funct3) {
-            case 0b000: return alu::AluOp::SUB; //beq,bne
-            case 0b001: return alu::AluOp::SUB; //beq,bne
-            case 0b100: return alu::AluOp::SLT; //blt
-            case 0b101: return alu::AluOp::SLT; //bge
-            case 0b110: return alu::AluOp::SLTU; //bltu -branch if less than unsigned
-            case 0b111: return alu::AluOp::SLTU; //bgeu
+            case 0b000: return alu::AluOp::kSub; //beq,bne
+            case 0b001: return alu::AluOp::kSub; //beq,bne
+            case 0b100: return alu::AluOp::kSlt; //blt
+            case 0b101: return alu::AluOp::kSlt; //bge
+            case 0b110: return alu::AluOp::kSltu; //bltu -branch if less than unsigned
+            case 0b111: return alu::AluOp::kSltu; //bgeu
             default: return alu::AluOp::kNone;
         }
     }
 
     if (opcode == get_instr_encoding(Instruction::kItype).opcode || opcode == get_instr_encoding(Instruction::kLoadType).opcode || opcode == get_instr_encoding(Instruction::kStype).opcode || opcode == get_instr_encoding(Instruction::kjalr).opcode) { // I-type, Load, Store, JALR
         switch (funct3) {
-            case 0b000: return alu::AluOp::ADD;
-            case 0b001: return alu::AluOp::SLL;
-            case 0b010: return alu::AluOp::SLT;
-            case 0b011: return alu::AluOp::SLTU;
-            case 0b100: return alu::AluOp::XOR;
-            case 0b101: return (funct7 >> 5) ? alu::AluOp::SRA : alu::AluOp::SRL;
-            case 0b110: return alu::AluOp::OR;
-            case 0b111: return alu::AluOp::AND;
-            default: return alu::AluOp::NOP;
+            case 0b000: return alu::AluOp::kAdd;
+            case 0b001: return alu::AluOp::kSll;
+            case 0b010: return alu::AluOp::kSlt;
+            case 0b011: return alu::AluOp::kSltu;
+            case 0b100: return alu::AluOp::kXor;
+            case 0b101: return (funct7 >> 5) ? alu::AluOp::kSra : alu::AluOp::kSrl;
+            case 0b110: return alu::AluOp::kOr;
+            case 0b111: return alu::AluOp::kAnd;
+            default: return alu::AluOp::kNone;
         }
     }
 
     if (opcode == get_instr_encoding(Instruction::kRtype).opcode) { // R-type
         switch (funct3) {
-            case 0b000: return (funct7 >> 5) ? alu::AluOp::SUB : alu::AluOp::ADD;
-            case 0b001: return alu::AluOp::SLL;
-            case 0b010: return alu::AluOp::SLT;
-            case 0b011: return alu::AluOp::SLTU;
-            case 0b100: return alu::AluOp::XOR;
-            case 0b101: return (funct7 >> 5) ? alu::AluOp::SRA : alu::AluOp::SRL;
-            case 0b110: return alu::AluOp::OR;
-            case 0b111: return alu::AluOp::AND;
-            default: return alu::AluOp::NOP;
+            case 0b000: return (funct7 >> 5) ? alu::AluOp::kSub : alu::AluOp::kAdd;
+            case 0b001: return alu::AluOp::kSll;
+            case 0b010: return alu::AluOp::kSlt;
+            case 0b011: return alu::AluOp::kSltu;
+            case 0b100: return alu::AluOp::kXor;
+            case 0b101: return (funct7 >> 5) ? alu::AluOp::kSra : alu::AluOp::kSrl;
+            case 0b110: return alu::AluOp::kOr;
+            case 0b111: return alu::AluOp::kAnd;
+            default: return alu::AluOp::kNone;
         }
     }
 
-    return alu::AluOp::NOP;
+    return alu::AluOp::kNone;
 }

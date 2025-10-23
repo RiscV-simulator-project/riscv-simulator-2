@@ -15,6 +15,7 @@ class ControlUnit {
     mem_read_ = false;//do not read from memory
     mem_write_ = false;//not a branch instruction
     branch_ = false;//default alu operation
+    jump_ = false;
     alu_op_ = 0;
   }
 
@@ -28,6 +29,7 @@ class ControlUnit {
   [[nodiscard]] bool GetMemWrite() const;
   [[nodiscard]] uint8_t GetAluOp() const;
   [[nodiscard]] bool GetBranch() const;
+  [[nodiscard]] bool GetJump() const;
 
  protected:
   bool reg_write_ = false;
@@ -36,7 +38,7 @@ class ControlUnit {
   bool mem_read_ = false;
   bool mem_write_ = false;
   bool mem_to_reg_ = false;
-  bool pc_src_ = false;
+  bool jump_ = false;
 
   uint8_t alu_op_{};
 };
