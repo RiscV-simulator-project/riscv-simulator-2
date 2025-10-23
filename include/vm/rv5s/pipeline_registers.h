@@ -21,6 +21,7 @@ struct ID_EX_Register {
     uint8_t rs1_idx = 0;
     uint8_t rs2_idx = 0;
     uint8_t rd_idx = 0;
+    uint8_t funct3 = 0; // Added: Used for memory access type and branch conditions
     
     // Control signals generated in the ID stage
     ControlSignals control;
@@ -34,6 +35,7 @@ struct EX_MEM_Register {
     uint64_t alu_result = 0;
     uint64_t rs2_val = 0; // Needed for store instructions
     uint8_t rd_idx = 0;
+    uint8_t funct3 = 0; // Added: Used for memory access type
     bool alu_zero = false; // Result of a comparison was zero
 
     // Control signals passed through

@@ -2,7 +2,7 @@
 
 ## Building the Project
 
-The code base is written in C++17, to build the project use cmake. (You might want to use 
+The code base is written in C++20, to build the project use cmake. (You might want to use 
 ninja for faster builds.)
 
 ## Usage
