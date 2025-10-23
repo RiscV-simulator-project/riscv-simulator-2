@@ -17,6 +17,7 @@ void RV5SControlUnit::SetControlSignals(uint32_t instruction) {
   mem_write_ = false;
   alu_src_ = false;
   jump_ = false;
+  pc_to_alu_ = false;
   alu_op_ = 0;
   pc_to_alu_ = false;
 
@@ -82,6 +83,7 @@ void RV5SControlUnit::SetControlSignals(uint32_t instruction) {
           case get_instr_encoding(Instruction::kjal).opcode: //jal
               reg_write_ = true;
               jump_ = true; // To signal a PC change
+              pc_to_alu_ = true;
               break;
           case get_instr_encoding(Instruction::kjalr).opcode: //jalr
               reg_write_ = true;
