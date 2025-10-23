@@ -11,7 +11,7 @@ RiscV5StageVM::RiscV5StageVM() : VmBase() {
 RiscV5StageVM::~RiscV5StageVM() = default;
 
 void RiscV5StageVM::Run() {
-    ClearStop();
+    stop_requested_ = false;
     while (!stop_requested_ && program_counter_ < program_size_) {
         ClockTick();
     }
@@ -38,9 +38,8 @@ void RiscV5StageVM::ClockTick() {
 
     // --- Latch new values for the next cycle ---
     // This simulates the clock edge where all registers are updated simultaneously.
-    if_id_reg_ = next_if_id_reg_;
-    id_ex_reg_ = next_id_ex_reg_;
     if (if_id_write_) if_id_reg_ = next_if_id_reg_;
+    // Stalls in ID/EX are handled by injecting bubbles
     id_ex_reg_ = next_id_ex_reg_; // Stalls in ID/EX are handled by injecting bubbles
     ex_mem_reg_ = next_ex_mem_reg_;
     mem_wb_reg_ = next_mem_wb_reg_;
@@ -54,7 +53,6 @@ void RiscV5StageVM::ClockTick() {
         id_ex_reg_.valid = false;
         branch_taken_ = false; // Reset for the next cycle
     } else {
-    } else if (pc_write_) {
         program_counter_ += 4;
     }
 
@@ -159,8 +157,6 @@ void RiscV5StageVM::ExecuteStage() {
 
     // Determine ALU inputs (will be modified by forwarding unit later)
     uint64_t alu_input1;
-    uint64_t alu_input1 = id_ex_reg_.rs1_val;
-    uint64_t alu_input2 = id_ex_reg_.control.alu_src ? id_ex_reg_.imm : id_ex_reg_.rs2_val;
 
     // For AUIPC, JAL, and JALR, the first ALU input is the PC. For others, it's rs1.
     if (id_ex_reg_.control.pc_to_alu) { // Assumes a new 'pc_to_alu' signal from the control unit
@@ -181,7 +177,7 @@ void RiscV5StageVM::ExecuteStage() {
     if (id_ex_reg_.control.jump) {
         branch_taken_ = true;
         // For JAL, the target is alu_result (PC + imm).
-        // For JALR, the target is (rs1_val + imm) & ~1.
+        // For JALR, the target is (rs1_val + imm) & ~1ULL.
         if (id_ex_reg_.funct3 == 0) { // JALR instruction
             branch_target_ = next_ex_mem_reg_.alu_result & ~1ULL;
         } else { // JAL instruction

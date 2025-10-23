@@ -9,7 +9,7 @@
 class RiscV5StageVM : public VmBase {
 public:
     RiscV5StageVM();
-    ~RiscV5StageVM() override;
+    ~RiscV5StageVM() override = default;
 
     // VmBase Interface 
     void Run() override;
@@ -51,6 +51,10 @@ private:
     // State for stalling and flushing
     bool pc_write_ = true;
     bool if_id_write_ = true;
+
+    // Branch prediction/handling state
+    bool branch_taken_ = false;
+    uint64_t branch_target_ = 0;
 };
 
 #endif // RV5S_VM_H

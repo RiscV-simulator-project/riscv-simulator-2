@@ -17,6 +17,7 @@ struct ControlSignals {
     bool alu_src = false;
     uint8_t alu_op = 0;
     bool jump = false; // For JAL/JALR
+    bool pc_to_alu = false;
 };
 
 /**
@@ -38,7 +39,7 @@ public:
      * @return A ControlSignals struct.
      */
     [[nodiscard]] ControlSignals GetSignals() const {
-        return {reg_write_, mem_to_reg_, branch_, mem_read_, mem_write_, alu_src_, alu_op_, jump_};
+        return {reg_write_, mem_to_reg_, branch_, mem_read_, mem_write_, alu_src_, alu_op_, jump_, pc_to_alu_};
     }
 };
 

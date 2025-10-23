@@ -18,6 +18,7 @@ void RV5SControlUnit::SetControlSignals(uint32_t instruction) {
   alu_src_ = false;
   jump_ = false;
   alu_op_ = 0;
+  pc_to_alu_ = false;
 
   if (instruction_set::isFInstruction(instruction) || instruction_set::isDInstruction(instruction)) {
       // Floating point instructions
@@ -51,7 +52,7 @@ void RV5SControlUnit::SetControlSignals(uint32_t instruction) {
               break;
           case get_instr_encoding(Instruction::kAuipc).opcode: // AUIPC
               reg_write_ = true;
-              // alu_op_ is not used, PC+imm is handled separately
+              pc_to_alu_ = true;
               break;
           case get_instr_encoding(Instruction::kItype).opcode: //I-type
               alu_src_ = true;
