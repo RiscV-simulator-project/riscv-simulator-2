@@ -38,31 +38,15 @@ void RiscV5StageVM::ClockTick() {
 
     // --- Latch new values for the next cycle ---
     // This simulates the clock edge where all registers are updated simultaneously.
-<<<<<<< HEAD
-    if (if_id_write_) if_id_reg_ = next_if_id_reg_;
-    // Stalls in ID/EX are handled by injecting bubbles
-    id_ex_reg_ = next_id_ex_reg_; // Stalls in ID/EX are handled by injecting bubbles
-=======
     if (if_id_write_) {
         if_id_reg_ = next_if_id_reg_;
     }
     id_ex_reg_ = next_id_ex_reg_; // Stalls are handled by injecting bubbles into next_id_ex_reg_
->>>>>>> 982fc4b (fixed pipeline branch)
     ex_mem_reg_ = next_ex_mem_reg_;
     mem_wb_reg_ = next_mem_wb_reg_;
     
     // --- PC Update Logic ---
     // Handle PC update based on whether a branch was taken in the EX stage
-<<<<<<< HEAD
-    if (branch_taken_) {
-        program_counter_ = branch_target_;
-        // Flush the IF and ID stages by invalidating their registers
-        if_id_reg_.valid = false;
-        id_ex_reg_.valid = false;
-        branch_taken_ = false; // Reset for the next cycle
-    } else {
-        program_counter_ += 4;
-=======
     if (pc_write_) {
         if (branch_taken_) {
             program_counter_ = branch_target_;
@@ -71,7 +55,6 @@ void RiscV5StageVM::ClockTick() {
         } else {
             program_counter_ += 4;
         }
->>>>>>> 982fc4b (fixed pipeline branch)
     }
 
     cycle_s_++;
@@ -172,16 +155,10 @@ void RiscV5StageVM::ExecuteStage() {
 
     // Determine ALU inputs
     uint64_t alu_input1;
-<<<<<<< HEAD
-
-    // For AUIPC, JAL, and JALR, the first ALU input is the PC. For others, it's rs1.
-    if (id_ex_reg_.control.pc_to_alu) { // Assumes a new 'pc_to_alu' signal from the control unit
-=======
     uint64_t alu_input2;
     
     // For AUIPC, JAL, the first ALU input is the PC. For others, it's rs1.
     if (id_ex_reg_.control.pc_to_alu) {
->>>>>>> 982fc4b (fixed pipeline branch)
         alu_input1 = id_ex_reg_.pc;
     } else {
         alu_input1 = id_ex_reg_.rs1_val;
@@ -244,13 +221,8 @@ void RiscV5StageVM::ExecuteStage() {
         next_id_ex_reg_.valid = false;
 
         // For JAL, the target is alu_result (PC + imm).
-<<<<<<< HEAD
-        // For JALR, the target is (rs1_val + imm) & ~1ULL.
-        if (id_ex_reg_.funct3 == 0) { // JALR instruction
-=======
         // For JALR, the target is (rs1_val + imm) & ~1. Opcode is kjalr, funct3 is 0
-        if ( (id_ex_reg_.instruction & 0b1111111) == instruction_set::get_instr_encoding(instruction_set::Instruction::kjalr).opcode) { // JALR instruction
->>>>>>> 982fc4b (fixed pipeline branch)
+        if (static_cast<uint8_t>(id_ex_reg_.instruction & 0b1111111) == instruction_set::get_instr_encoding(instruction_set::Instruction::kjalr).opcode) { // JALR instruction
             branch_target_ = next_ex_mem_reg_.alu_result & ~1ULL;
         } else { // JAL instruction
             branch_target_ = next_ex_mem_reg_.alu_result;
