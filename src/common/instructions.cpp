@@ -940,27 +940,44 @@ bool isFInstruction(const uint32_t &instruction) {
 }
 
 bool isDInstruction(const uint32_t &instruction) {
-  uint8_t opcode = (instruction & 0b1111111);
+  uint8_t opcode = instruction & 0b1111111;
   uint8_t funct3 = (instruction >> 12) & 0b111;
   uint8_t funct7 = (instruction >> 25) & 0b1111111;
-  
 
+  // Handle FP load/store: fld/fsd. For load/store, funct3==0b011 means double precision.
   switch (opcode) {
-    case 0b0000111: // fld
-    case 0b0100111: {// fsd
-      if (funct3==0b011) {
-        return true; // fld
+    case 0b0000111: // F-type load (FLW/FLD)
+    case 0b0100111: { // F-type store (FSW/FSD)
+      if (funct3 == 0b011) {
+        return true;
       }
       break;
     }
-    case 0b1010011: {
-      if (funct7 & 0b1) {
+    case 0b1010011: { // FP R-type (FADD/FSUB/FMUL/FDIV/FSQRT etc)
+      // The least significant bit of funct7 indicates double precision when set.
+      if ((funct7 & 0b1) != 0) {
         return true;
-      } else if (funct7==0b0100000) {
-        return true; // fcvt.s.d
       }
+      // FCVT.S.D (double->single) has funct7 == 0b0100000 and is a D-type operation.
+      if (funct7 == 0b0100000) {
+        return true;
+      }
+      break;
     }
-    default: break;
+    // Handle fused multiply-add/subtract: FMADD/FMSUB/FNMADD/FNMSUB.
+    // These instructions encode precision in bits [26:25] (fmt): 00=single, 01=double.
+    case 0b1000011: // FMADD.S/D
+    case 0b1000111: // FMSUB.S/D
+    case 0b1001011: // FNMADD.S/D
+    case 0b1001111: { // FNMSUB.S/D
+      uint8_t fmt = (instruction >> 25) & 0b11;
+      if (fmt == 0b01) {
+        return true;
+      }
+      break;
+    }
+    default:
+      break;
   }
   return false;
 }
