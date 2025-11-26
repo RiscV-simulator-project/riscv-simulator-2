@@ -80,7 +80,6 @@ static std::string decode_fclass(uint16_t res) {
     case AluOp::kMulh: {
       auto sa = static_cast<int64_t>(a);
       auto sb = static_cast<int64_t>(b);
-      // TODO: do something about this, msvc doesnt support __int128
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -247,6 +246,10 @@ static std::string decode_fclass(uint16_t res) {
   std::memcpy(&b, &inb, sizeof(float));
   std::memcpy(&c, &inc, sizeof(float));
   float result = 0.0;
+  
+  // Flag to indicate if the instruction returns an integer (GPR write)
+  // These must NOT be NaN-boxed. 
+  bool is_int_result = false;
 
   uint8_t fcsr = 0;
 
@@ -268,11 +271,10 @@ static std::string decode_fclass(uint16_t res) {
   std::feclearexcept(FE_ALL_EXCEPT);
 
   switch (op) {
-    case AluOp::kAdd: {
+    case AluOp::kAdd: { // Should not be reached in fpexecute usually, but just in case
       auto sa = static_cast<int64_t>(ina);
       auto sb = static_cast<int64_t>(inb);
       int64_t res = sa + sb;
-      // bool overflow = __builtin_add_overflow(sa, sb, &res); // TODO: check this
       return {static_cast<uint64_t>(res), 0};
     }
     case AluOp::kFmadd_s: {
@@ -444,35 +446,41 @@ static std::string decode_fclass(uint16_t res) {
       break;
     }
     case AluOp::FEQ_S: {
+      is_int_result = true;
       if (std::isnan(a) || std::isnan(b)) {
-        result = 0.0f;
+        result = 0.0f; // False, return 0
       } else {
-        result = (a==b) ? 1.0f : 0.0f;
-        if (result == 1.0f) {
-          return {0b1,fcsr};
+        if (a == b) {
+            std::fesetround(original_rm);
+            return {1, fcsr}; // True, return 1 (Early return)
         }
+        result = 0.0f; // False, return 0
       }
       break;
     }
     case AluOp::FLT_S: {
+      is_int_result = true;
       if (std::isnan(a) || std::isnan(b)) {
         result = 0.0f;
       } else {
-        result = (a < b) ? 1.0f : 0.0f;
-        if (result == 1.0f) {
-          return {0b1,fcsr};
+        if (a < b) {
+            std::fesetround(original_rm);
+            return {1, fcsr}; 
         }
+        result = 0.0f;
       }
       break;
     }
     case AluOp::FLE_S: {
+      is_int_result = true;
       if (std::isnan(a) || std::isnan(b)) {
         result = 0.0f;
       } else {
-        result = (a <= b) ? 1.0f : 0.0f;
-        if (result == 1.0f) {
-          return {0b1, fcsr};
+        if (a <= b) {
+            std::fesetround(original_rm);
+            return {1, fcsr}; 
         }
+        result = 0.0f;
       }
       break;
     }
@@ -496,13 +504,14 @@ static std::string decode_fclass(uint16_t res) {
       std::fesetround(original_rm);
       // std::cout << "Class: " << decode_fclass(res) << "\n";
 
-
+      // FCLASS returns an integer result
       return {res, fcsr};
     }
     case AluOp::FMV_X_W: {
       int32_t float_bits;
       std::memcpy(&float_bits, &ina, sizeof(float));
       auto sign_extended = static_cast<int64_t>(float_bits);
+      // Returns Integer (sign extended 32-bit int)
       return {static_cast<uint64_t>(sign_extended), fcsr};
     }
     case AluOp::FMV_W_X: {
@@ -524,10 +533,22 @@ static std::string decode_fclass(uint16_t res) {
 
   uint32_t result_bits = 0;
   std::memcpy(&result_bits, &result, sizeof(result));
-  return {static_cast<uint64_t>(result_bits), fcsr};
+  
+  // CRITICAL FIX: NaN-Boxing
+  // For RV64D, single-precision results must be NaN-boxed (upper 32 bits set to 1s).
+  // Integer results (FEQ, FLT, FLE, FCVT_W, FCLASS, etc.) must NOT be boxed.
+  // The code above ensures FCVT_W, FCLASS, FMV_X_W return early.
+  // FEQ/FLT/FLE set is_int_result=true.
+  
+  if (is_int_result) {
+      return {static_cast<uint64_t>(result_bits), fcsr};
+  } else {
+      // Box the single precision float
+      return {0xFFFFFFFF00000000ULL | static_cast<uint64_t>(result_bits), fcsr};
+  }
 }
 
-[[nodiscard]] std::pair<uint64_t, bool> Alu::dfpexecute(AluOp op,
+[[nodiscard]] std::pair<uint64_t, uint8_t> Alu::dfpexecute(AluOp op,
                                                         uint64_t ina,
                                                         uint64_t inb,
                                                         uint64_t inc,
@@ -832,5 +853,4 @@ void Alu::setFlags(bool carry, bool zero, bool negative, bool overflow) {
   negative_ = negative;
   overflow_ = overflow;
 }
-
-} // namespace alu
+}
